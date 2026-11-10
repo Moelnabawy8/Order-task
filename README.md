@@ -1,115 +1,91 @@
-# Order Payment API – Laravel
+# Order Payment API
 
-This project implements a simple yet clean **Order Payment API** using **Laravel**, designed to demonstrate:
+**A focused Laravel exercise in transactions and reward-point updates.**
 
--   Transaction handling (`DB::transaction`)
--   Model relationships
--   Clean code structure
--   JSON API responses (success/error)
+[Overview](#overview) · [Local setup](#local-setup) · [Code guide](#code-guide) · [Verification](#verification)
 
----
+## Overview
+
+A small Laravel 10 API exercise that marks an existing pending order as paid and updates the owning user's reward points inside a database transaction. Payment here is an application status transition, with no external payment gateway call.
 
 ## Features
 
--   Change order status from `pending` → `paid`
--   Update user points based on order amount
--   Use transactions for data safety
--   Return consistent JSON responses
+- Route-model binding for an existing order.
+- Rejects orders whose status is not `pending`.
+- Updates the order status and user points within `DB::transaction`.
+- Returns JSON success and error responses.
+- Adds a 10-point bonus when the order total is at least 100.
 
----
+## Technology
 
-## Technologies Used
+| Layer | Stack |
+| --- | --- |
+| Backend | PHP `^8.1` · Laravel `^10.10` |
+| Interface and tooling | Laravel 10 · Eloquent · JSON API |
+| Data | Eloquent ORM · MySQL in the supplied environment template |
 
--   **Laravel 10**
--   **MySQL**
--   **PHP 8.2+**
+Version constraints above come from [composer.json](composer.json) and [package.json](package.json). Use a PHP runtime compatible with `composer.lock`, Composer 2, and a Node.js/npm version compatible with the declared asset tooling. Enable the PHP extensions required by Composer and the selected database driver.
 
----
+## Local setup
 
-## Installation
-
-1. **Clone the repo**
-
-    ```bash
-    git clone https://github.com/Moelnabawy8/order-task.git
-    cd order-task
-    ```
-
-2. **Install dependencies**
-
-    ```bash
-    composer install
-    ```
-
-3. **Set up `.env`**
-
-    ```bash
-    cp .env.example .env
-    php artisan key:generate
-    ```
-
-4. **Run migrations**
-
-    ```bash
-    php artisan migrate
-    ```
-
-5. **(Optional)** Seed some test data:
-
-    ```bash
-    php artisan tinker
-    User::create(['name' => 'Mo', 'email' => 'mo@test.com', 'password' => bcrypt('123456'), 'points' => 0]);
-    Order::create(['user_id' => 1, 'total_price' => 150, 'status' => 'pending']);
-    ```
-
----
-
-## API Endpoint
-
-### Pay Order
-
-**URL:**
-
-```
-POST /api/orders/{order}/pay
+```bash
+git clone https://github.com/Moelnabawy8/Order-task.git
+cd Order-task
+composer install
+cp .env.example .env
+php artisan key:generate
+npm install
 ```
 
-**Description:**
-Marks an order as “paid” and increases user points.
-If `total_price >= 100`, the user gets `+10` bonus points.
+Create an empty local MySQL database. Set `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD` in your local `.env`; keep `DB_CONNECTION=mysql`. Set `APP_URL=http://127.0.0.1:8000`. For local mail inspection, set `MAIL_MAILER=log` instead of configuring a live mail provider.
 
-**Example Request:**
-
-```
-POST http://127.0.0.1:8000/api/orders/1/pay
-```
-
-**Example Response:**
-
-```json
-{
-    "message": "Payment processed successfully.",
-    "order": {
-        "id": 1,
-        "user_id": 1,
-        "total_price": 150,
-        "status": "paid"
-    },
-    "user_points": 160
-}
+```bash
+php artisan migrate
+php artisan storage:link
+npm run build
+php artisan serve
 ```
 
----
+Open [the local application](http://127.0.0.1:8000). For asset hot reload, run `npm run dev` in a second terminal while the PHP server remains running.
 
-## Code Explanation
+## API contract
 
-### `OrderController@pay`
+| Method | Endpoint | Behaviour |
+| --- | --- | --- |
+| POST | `/api/orders/{order}/pay` | Mark an existing pending order as paid and add reward points |
 
--   Checks if order status is `pending`
--   Starts a database transaction
--   Updates order status to `paid`
--   Returns formatted JSON success or error response
+The current implementation adds `total_price` points, plus 10 when `total_price >= 100`. An order totalling 150 therefore adds 160 points to the user's existing balance.
 
-## 🪪 License
+```bash
+curl -X POST http://127.0.0.1:8000/api/orders/1/pay \
+  -H 'Accept: application/json'
+```
 
-This project is open-source and available under the [MIT License](LICENSE).
+Create a local user and a related pending order before trying the request. The default seeder does not create either record. The endpoint has no authentication middleware in the checked-in route file, so this project is best treated as a local exercise until authentication, ownership checks and concurrency handling are added.
+
+## Code guide
+
+| Path | Responsibility |
+| --- | --- |
+| [`routes/api.php`](routes/api.php) | Payment endpoint registration |
+| [`app/Http/Controllers/OrderController.php`](app/Http/Controllers/OrderController.php) | Transaction and points calculation |
+| [`app/Models/Order.php`](app/Models/Order.php) | Order data model |
+| [`app/Models/User.php`](app/Models/User.php) | User and reward points |
+
+## Verification
+
+Only example tests are checked in. Dedicated tests should cover the points threshold, non-pending orders, transaction rollback and concurrent requests.
+
+Use an isolated testing database and review [phpunit.xml](phpunit.xml) before running the suite. Database-resetting tests must point to disposable data.
+
+```bash
+php artisan test
+```
+
+To check PHP formatting without modifying files:
+
+```bash
+./vendor/bin/pint --test
+```
+
+Build the front-end assets with `npm run build` after changing JavaScript, CSS or templates. Keep local configuration in `.env` and commit only configuration examples.
